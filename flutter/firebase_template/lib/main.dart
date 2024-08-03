@@ -1,12 +1,21 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_template/services/fire_authentication.dart';
 import 'firebase_options.dart';
 
 import 'package:flutter/material.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  //await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+  FireAuthentication.initialize();
+
   runApp(const MyApp());
 }
 
@@ -62,16 +71,41 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  var smsText = TextEditingController();
+  bool verifySMS = false;
 
   void _incrementCounter() {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
       _counter++;
     });
+  }
+
+  Future waitWhile(bool Function() condition) async {
+    if (condition()) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      await waitWhile(condition);
+    }
+  }
+
+  void verifyPhoneNumber() {
+    verifySMS = false;
+    FireAuthentication.phoneAuthenticate(
+      phoneNumber: smsText.text,
+      onSMSCodeSent: () async {
+        smsText.clear();
+
+        await waitWhile(() => !verifySMS);
+        return smsText.text;
+      },
+      onSuccess: () =>
+          print("mabrook y basha; ${FireAuthentication.currentUser?.uid}"),
+      onFailed: (error) => print,
+    );
+  }
+
+  void verifyCode() async {
+    verifySMS = true;
+    print(FireAuthentication.currentUser?.phoneNumber);
   }
 
   @override
@@ -111,6 +145,21 @@ class _MyHomePageState extends State<MyHomePage> {
           // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            TextFormField(
+              controller: smsText,
+            ),
+            ElevatedButton(
+              onPressed: verifyPhoneNumber,
+              child: const Text("signin with phone number"),
+            ),
+            ElevatedButton(
+              onPressed: verifyCode,
+              child: const Text("verify SMS Code"),
+            ),
+            const ElevatedButton(
+              onPressed: FireAuthentication.signOut,
+              child: Text("SignOut"),
+            ),
             const Text(
               'You have pushed the button this many times:',
             ),
